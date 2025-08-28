@@ -86,7 +86,8 @@ def main():
     parser = argparse.ArgumentParser(description="A script to analyze a secrets dump, compare NTLM hashes for re-use, and identify usage of LM hashing.")
 
     parser.add_argument('dump_file', type=str, help='The raw secrets dump output.')
-    parser.add_argument('output_file', type=str, help='A file to save the results to.')
+    parser.add_argument('output_file', type=str, help='A file to save all results to.')
+    parser.add_argument('report_file', type=str, help='A file to save report style results to.')
 
     args = parser.parse_args()
 
@@ -109,12 +110,14 @@ def main():
 
     blank_accounts = blank_passwords(hash_line_list)
 
-    print(f"[+] Accounts with LM Hashes: {", ".join(lm_accounts)}\n")
-    print(f"[+] Accounts with Blank Passwords: {", ".join(blank_accounts)}\n")
-    print("[+] Accounts with the Same Passwords:\n")
+    with open(args.report_file, "w") as report_file:
+        input = f"[+] Accounts with LM Hashes: {", ".join(lm_accounts)}\n"
+        input += f"[+] Accounts with Blank Passwords: {", ".join(blank_accounts)}\n"
+        input += "[+] Accounts with the Same Passwords:\n"
+        for line in accounts_same_pass:
+           input += f"\nSame Password: {line}"
 
-    for line in accounts_same_pass:
-        print(f"Same Password: {line}")
+        report_file.writelines(input)
     
     return
 
