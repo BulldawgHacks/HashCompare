@@ -120,11 +120,14 @@ def main():
 
     hash_line_list = []
 
-    # keep only the lines that match the expected format (original code used .endswith(":::"))
     for line in raw_dump_file_list:
         line = line.rstrip("\n")
-        if line.endswith(":::"):
-            hash_line_list.append(line)
+
+        # split on whitespace to remove trailing stats
+        first_field = line.split()[0]
+
+        if first_field.endswith(":::"):
+            hash_line_list.append(first_field)
 
     lm_accounts = identify_lm(hash_line_list)
 
