@@ -1,4 +1,6 @@
 import argparse
+import os
+from datetime import datetime
 
 output_file = ""
 same_hash_list = []
@@ -102,17 +104,32 @@ def main():
     parser = argparse.ArgumentParser(description="A script to analyze a secrets dump, compare NTLM hashes for re-use, and identify usage of LM hashing.")
 
     parser.add_argument('dump_file', type=str, help='The raw secrets dump output.')
-    parser.add_argument('-o', '--output', dest='output_file', type=str, required=True, help='A file to save all results to.')
-    parser.add_argument('-r', '--report', dest='report_file', type=str, required=True, help='A file to save report style results to.')
-    parser.add_argument('-l', '--lm-list', dest='lm_list_file', type=str, help='File to save list of accounts with LM hashes (one per line).')
-    parser.add_argument('-s', '--same-pass-list', dest='same_pass_file', type=str, help='File to save accounts with same passwords (comma-separated per line).')
-    parser.add_argument('-b', '--blank-list', dest='blank_list_file', type=str, help='File to save list of accounts with blank passwords (one per line).')
+    parser.add_argument('-d', '--directory', dest='output_dir', type=str, help='Directory to save output files to. If not specified, creates a timestamped directory.')
 
     args = parser.parse_args()
 
-    if args.output_file:
-        global output_file
-        output_file = args.output_file
+    # Determine output directory
+    if args.output_dir:
+        output_dir = args.output_dir
+    else:
+        # Create timestamped directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = f"password_analysis_{timestamp}"
+    
+    # Create directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Define output file paths
+    comparison_output = os.path.join(output_dir, "Comparison Output.txt")
+    lm_hash_file = os.path.join(output_dir, "LM Hash Usage.txt")
+    reuse_account_list = os.path.join(output_dir, "Password Reuse Account List.txt")
+    same_password_file = os.path.join(output_dir, "Accounts with the Same Password.txt")
+    blank_password_file = os.path.join(output_dir, "Accounts with Blank Passwords.txt")
+
+    # Set global output file
+    global output_file
+    output_file = comparison_output
 
     with open(args.dump_file, "r") as raw_dump_file:
         # preserve spaces inside usernames by reading line-by-line
@@ -137,53 +154,49 @@ def main():
 
     blank_accounts = blank_passwords(hash_line_list)
 
-    # Print summary to terminal
-    print(f"\n[+] Accounts with LM Hashes: {len(lm_accounts)}")
-    
-    # Calculate total accounts with reused passwords
-    total_reuse_accounts = sum(len(group) for group in accounts_same_pass)
-    print(f"[+] {len(accounts_same_pass)} passwords used across {total_reuse_accounts} accounts")
-    
-    print(f"[+] Accounts with Blank Passwords: {len(blank_accounts)}")
-    
-    print(f"\n[+] Output Files:")
-    print(f"    Main output: {args.output_file}")
-    print(f"    Report: {args.report_file}")
-    if args.lm_list_file:
-        print(f"    LM accounts list: {args.lm_list_file}")
-    if args.same_pass_file:
-        print(f"    Same password list: {args.same_pass_file}")
-    if args.blank_list_file:
-        print(f"    Blank password list: {args.blank_list_file}")
+    # Calculate accounts with reused passwords (flattened set)
+    accounts_with_reused_passwords = set()
+    for group in accounts_same_pass:
+        accounts_with_reused_passwords.update(group)
+
+    # Calculate statistics
+    num_lm_accounts = len(lm_accounts)
+    num_reused_accounts = len(accounts_with_reused_passwords)
+    num_unique_reused_passwords = len(accounts_same_pass)
+    num_blank_accounts = len(blank_accounts)
+
+    print(f"\n[+] Output Directory: {output_dir}")
+    print(f"[+] Output Files:")
+    print(f"    Comparison Output: Comparison Output.txt")
+    print(f"    LM Hash Usage: LM Hash Usage.txt")
+    print(f"    Password Reuse Account List: Password Reuse Account List.txt")
+    print(f"    Accounts with Same Password: Accounts with the Same Password.txt")
+    print(f"    Accounts with Blank Passwords: Accounts with Blank Passwords.txt")
     print()
+    print(f"[+] Accounts with LM Hashes: {num_lm_accounts}")
+    print(f"[+] Accounts with Reused Passwords: {num_reused_accounts}")
+    print(f"[+] {num_unique_reused_passwords} unique passwords reused across {num_reused_accounts} accounts")
+    print(f"[+] Accounts with Blank Passwords: {num_blank_accounts}")
 
-    # Write main report file
-    with open(args.report_file, "w") as report_file:
-        report_text = f"[+] Accounts with LM Hashes: {', '.join(sorted(lm_accounts))}\n"
-        report_text += f"[+] Accounts with Blank Passwords: {', '.join(sorted(blank_accounts))}\n"
-        report_text += "[+] Accounts with the Same Passwords:\n"
+    # Write LM Hash Usage file
+    with open(lm_hash_file, "w") as lm_file:
+        for account in sorted(lm_accounts):
+            lm_file.write(f"{account}\n")
+
+    # Write Password Reuse Account List file
+    with open(reuse_account_list, "w") as reuse_file:
+        for account in sorted(accounts_with_reused_passwords):
+            reuse_file.write(f"{account}\n")
+
+    # Write Accounts with the Same Password file
+    with open(same_password_file, "w") as same_file:
         for accounts in sorted(accounts_same_pass):
-           report_text += f"\nSame Password: {', '.join(accounts)}"
+            same_file.write(f"{', '.join(accounts)}\n")
 
-        report_file.writelines(report_text)
-
-    # Write LM accounts list file (one per line)
-    if args.lm_list_file:
-        with open(args.lm_list_file, "w") as lm_file:
-            for account in sorted(lm_accounts):
-                lm_file.write(f"{account}\n")
-
-    # Write same password accounts file (comma-separated per line)
-    if args.same_pass_file:
-        with open(args.same_pass_file, "w") as same_file:
-            for accounts in sorted(accounts_same_pass):
-                same_file.write(f"{', '.join(accounts)}\n")
-
-    # Write blank password accounts list file (one per line)
-    if args.blank_list_file:
-        with open(args.blank_list_file, "w") as blank_file:
-            for account in sorted(blank_accounts):
-                blank_file.write(f"{account}\n")
+    # Write Accounts with Blank Passwords file
+    with open(blank_password_file, "w") as blank_file:
+        for account in sorted(blank_accounts):
+            blank_file.write(f"{account}\n")
 
     return
 

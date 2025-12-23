@@ -7,7 +7,7 @@ A Python tool for analyzing hash dumps produced by secretsdump.py to identify se
 - **Blank Password Detection**: Identifies accounts with blank/empty passwords
 - **LM Hash Detection**: Finds accounts still using the weak LM hashing algorithm
 - **Password Reuse Analysis**: Detects accounts sharing the same passwords by comparing NTLM hashes
-- **Multiple Output Formats**: Generates detailed logs, sanitized reports, and structured account lists
+- **Organized Output**: Automatically creates timestamped directories with multiple analysis files
 
 ## Requirements
 
@@ -26,17 +26,23 @@ cd HashCompare
 ### Basic Usage
 
 ```text
-python HashCompare.py -o output.txt -r report.txt -l lm_hashes.txt -s same_passwords.txt -b blank_passwords.txt dump.txt
+python HashCompare.py dump.txt
+```
+
+This will create a timestamped directory (e.g., `password_analysis_20241223_143052`) containing all output files.
+
+### Specify Output Directory
+
+```text
+python HashCompare.py dump.txt -d my_analysis
 ```
 
 ### Command-Line Options
 
 ```text
-usage: HashCompare.py [-h] -o OUTPUT_FILE -r REPORT_FILE [-l LM_LIST_FILE]
-                      [-s SAME_PASS_FILE] [-b BLANK_LIST_FILE]
-                      dump_file
+usage: HashCompare.py [-h] [-d OUTPUT_DIR] dump_file
 
-A script to analyze a secrets dump, compare NTLM hashes for re-use, identify accounts with blank passwords, and
+A script to analyze a secrets dump, compare NTLM hashes for re-use, and
 identify usage of LM hashing.
 
 positional arguments:
@@ -44,24 +50,16 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o OUTPUT_FILE, --output OUTPUT_FILE
-                        A file to save all results to.
-  -r REPORT_FILE, --report REPORT_FILE
-                        A file to save report style results to.
-  -l LM_LIST_FILE, --lm-list LM_LIST_FILE
-                        File to save list of accounts with LM hashes (one per
-                        line).
-  -s SAME_PASS_FILE, --same-pass-list SAME_PASS_FILE
-                        File to save accounts with same passwords (comma-
-                        separated per line).
-  -b BLANK_LIST_FILE, --blank-list BLANK_LIST_FILE
-                        File to save list of accounts with blank passwords
-                        (one per line).
+  -d OUTPUT_DIR, --directory OUTPUT_DIR
+                        Directory to save output files to. If not specified,
+                        creates a timestamped directory.
 ```
 
 ## Output Files
 
-### Main Output File (`-o`)
+All output files are automatically created in the specified or timestamped directory:
+
+### Comparison Output.txt
 
 Contains detailed findings with hash values and full account information. Includes:
 
@@ -69,15 +67,7 @@ Contains detailed findings with hash values and full account information. Includ
 - Groups of accounts sharing passwords with NTLM hash values
 - All accounts with blank passwords
 
-### Report File (`-r`)
-
-Sanitized summary suitable for reports - no credential information included. Contains:
-
-- Summary of accounts with LM hashes
-- Summary of accounts with blank passwords
-- Grouped listings of accounts sharing passwords
-
-### LM Accounts List (`-l`)
+### LM Hash Usage.txt
 
 Simple list format, one account per line:
 
@@ -87,17 +77,29 @@ user2
 user3
 ```
 
-### Same Password Accounts List (`-s`)
+### Password Reuse Account List.txt
 
-Comma-separated groups, one group per line:
+Flattened list of all accounts that share passwords with at least one other account, one per line:
 
 ```text
-user1, user2, user3
-user4, user5
-admin, backup_admin
+admin
+backup_admin
+secondary_admin
+sqlservice
+webservice
 ```
 
-### Blank Password Accounts List (`-b`)
+### Accounts with the Same Password.txt
+
+Comma-separated groups showing which accounts share passwords, one group per line:
+
+```text
+admin, backup_admin, secondary_admin
+sqlservice, webservice
+user1, user2, user3, user4
+```
+
+### Accounts with Blank Passwords.txt
 
 Simple list format, one account per line:
 
@@ -112,28 +114,28 @@ temp_account
 ### Terminal Output
 
 ```text
-[+] Accounts with LM Hashes: 5
-[+] 3 passwords used across 12 accounts
-[+] Accounts with Blank Passwords: 2
-
+[+] Output Directory: password_analysis_20241223_143052
 [+] Output Files:
-    Main output: output.txt
-    Report: report.txt
-    LM accounts list: lm_accounts.txt
-    Same password list: same_passwords.txt
-    Blank password list: blank_passwords.txt
+    Comparison Output: Comparison Output.txt
+    LM Hash Usage: LM Hash Usage.txt
+    Password Reuse Account List: Password Reuse Account List.txt
+    Accounts with Same Password: Accounts with the Same Password.txt
+    Accounts with Blank Passwords: Accounts with Blank Passwords.txt
+
+[+] Accounts with LM Hashes: 5
+[+] Accounts with Reused Passwords: 12
+[+] 3 unique passwords reused across 12 accounts
+[+] Accounts with Blank Passwords: 2
 ```
 
-### Example Report File Content
+### Example Comparison Output.txt Content
 
 ```text
-[+] Accounts with LM Hashes: admin, legacy_service, old_backup
-[+] Accounts with Blank Passwords: guest, test_user
-[+] Accounts with the Same Passwords:
-
-Same Password: admin, backup_admin, secondary_admin
-Same Password: sqlservice, webservice
-Same Password: user1, user2, user3, user4
+[LM Hash In Use] CORP\admin:500:e52cac67419a9a224a3b108f3fa6cb6d:8846f7eaee8fb117ad06bdd830b7586c:::
+[Same Hash: 8846f7eaee8fb117ad06bdd830b7586c] admin, backup_admin, secondary_admin
+[Same Hash: a4f49c406510bdcab6824ee7c30fd852] sqlservice, webservice
+[Blank Password] guest
+[Blank Password] test_user
 ```
 
 ## Input Format
@@ -152,6 +154,9 @@ CORP\Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
 CORP\krbtgt:502:aad3b435b51404eeaad3b435b51404ee:32ed87bdb5fdc5e9cba88547376818d4:::
 ```
 
-## References
+## Understanding the Statistics
 
-- [Impacket](https://github.com/fortra/impacket) project for secretsdump.py
+- **Accounts with LM Hashes**: Number of accounts using the weak LM hashing algorithm (security risk)
+- **Accounts with Reused Passwords**: Total number of accounts that share passwords with other accounts
+- **Unique passwords reused**: Number of distinct passwords that are used by multiple accounts
+- **Accounts with Blank Passwords**: Number of accounts with no password set (critical security risk)
