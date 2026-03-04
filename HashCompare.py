@@ -159,7 +159,27 @@ def main():
     for group in accounts_same_pass:
         accounts_with_reused_passwords.update(group)
 
+    # Calculate total accounts and unique password hashes
+    total_accounts = set()
+    unique_hashes = set()
+
+    for hash_line in hash_line_list:
+        parts = hash_line.split(":", 4)
+        if len(parts) < 4:
+            continue
+
+        account = parts[0].strip()
+        ntlm_hash = parts[3].strip()
+
+        total_accounts.add(account)
+
+        # Exclude blank password hash and LM placeholder
+        if ntlm_hash != "31d6cfe0d16ae931b73c59d7e0c089c0" and "aad3b435b51404eeaad3b435b51404ee" not in ntlm_hash:
+            unique_hashes.add(ntlm_hash)
+
     # Calculate statistics
+    num_total_accounts = len(total_accounts)
+    num_unique_hashes = len(unique_hashes)
     num_lm_accounts = len(lm_accounts)
     num_reused_accounts = len(accounts_with_reused_passwords)
     num_unique_reused_passwords = len(accounts_same_pass)
@@ -172,6 +192,9 @@ def main():
     print(f"    Password Reuse Account List: Password Reuse Account List.txt")
     print(f"    Accounts with Same Password: Accounts with the Same Password.txt")
     print(f"    Accounts with Blank Passwords: Accounts with Blank Passwords.txt")
+    print()
+    print(f"[+] Total of Accounts: {num_total_accounts}")
+    print(f"[+] Total of Unique Password Hashes: {num_unique_hashes}")
     print()
     print(f"[+] Accounts with LM Hashes: {num_lm_accounts}")
     print(f"[+] Accounts with Reused Passwords: {num_reused_accounts}")
